@@ -196,40 +196,39 @@ const updateAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "logged in user id required for updating avatar")
     }
 
-    if(!avatar){
-        throw new ApiError(400 , "avatar required for updating")
+    if (!avatar) {
+        throw new ApiError(400, "avatar required for updating")
     }
 
     const user = await User.findById(loggedInUserId)
 
-    if(!user){
-        throw new ApiError(500 , "error while finding logged in user into database")
+    if (!user) {
+        throw new ApiError(500, "error while finding logged in user into database")
     }
 
-    const uploadedAvatar = await uploadOnCloudinary(avatar , {folder : "to-do"})
+    const uploadedAvatar = await uploadOnCloudinary(avatar, { folder: "to-do" })
 
-    console.log(uploadedAvatar.url);
 
-    if(updateAvatar.url === null || ""){
-        throw new ApiError(500 , "error while uploading avatar to cloudinary server")
+    if (updateAvatar.url === null || "") {
+        throw new ApiError(500, "error while uploading avatar to cloudinary server")
     }
 
-    if(user.avatar && user.avatar!== null || ""){
+    if (user.avatar && user.avatar !== null || "") {
         const prevAvatarPulicId = await extractPublicIdFromUrl(user.avatar)
         await deleteAssetFromCloudinary(prevAvatarPulicId)
     }
 
-    const updatedUser = await User.findByIdAndUpdate(loggedInUserId , {avatar : uploadedAvatar.url})
+    const updatedUser = await User.findByIdAndUpdate(loggedInUserId, { avatar: uploadedAvatar.url })
 
     return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200 ,
-            updatedUser ,
-            "avatar updated successfully"
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedUser,
+                "avatar updated successfully"
+            )
         )
-    )
 
 })
 
@@ -349,27 +348,29 @@ const getAllTodo_User = asyncHandler(async (req, res) => {
                 owner: user?._id
             }
         },
-  {$group: {
-    _id: null,
-    todos: { $push: "$$ROOT" },
-    totalTodos: { $sum: 1 },
-    completedTodos: {
-        $push: {
-            $cond: { if: "$completed", then: "$$ROOT", else: "$$REMOVE" }
-        }
-    },
-    totalCompletedTodos: {
-        $sum: { $cond: { if: { $eq: ["$completed", true] }, then: 1, else: 0 } }
-    },
-    uncompletedTodos: {
-        $push: {
-            $cond: { if: { $eq: ["$completed", false] }, then: "$$ROOT", else: "$$REMOVE" }
-        }
-    },
-    totalUncompletedTodos: {
-        $sum: { $cond: { if: { $eq: ["$completed", false] }, then: 1, else: 0 } }
-    }
-}} ,
+        {
+            $group: {
+                _id: null,
+                todos: { $push: "$$ROOT" },
+                totalTodos: { $sum: 1 },
+                completedTodos: {
+                    $push: {
+                        $cond: { if: "$completed", then: "$$ROOT", else: "$$REMOVE" }
+                    }
+                },
+                totalCompletedTodos: {
+                    $sum: { $cond: { if: { $eq: ["$completed", true] }, then: 1, else: 0 } }
+                },
+                uncompletedTodos: {
+                    $push: {
+                        $cond: { if: { $eq: ["$completed", false] }, then: "$$ROOT", else: "$$REMOVE" }
+                    }
+                },
+                totalUncompletedTodos: {
+                    $sum: { $cond: { if: { $eq: ["$completed", false] }, then: 1, else: 0 } }
+                }
+            }
+        },
 
         {
             $project: {
@@ -473,6 +474,100 @@ const logOut = asyncHandler(async (req, res) => {
         )
 })
 
+const updateProfile = asyncHandler(async (req, res) => {
+    const LoggedInUserId = req.user._id || req.headers.id
+
+    if (!LoggedInUserId) {
+        throw new ApiError(400, "can't update profile ( user not logged in )")
+    }
+
+    const { name, username, age, email , password } = req.body;
+
+    let avatar;
+
+    if (req.file) {
+        avatar = req.file?.path
+    } else {
+        avatar = null
+    }
+
+    if (!name && !username && !age && !email && !avatar) {
+        throw new ApiError(400, "at least one field must be updated")
+    }
+
+    if(!password){
+        throw new ApiError(400 , "password is required for updating profile")
+    }
+
+    const user = await User.findById(LoggedInUserId)
+
+    if (!user) {
+        throw new ApiError(400, "error while finding user in database")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(400 , "wrong password !")
+    }
+
+    var updatingFields = {}
+
+    if (name) {
+        updatingFields.name = name
+    }
+    if (username) {
+        updatingFields.username = username
+    }
+    if (age) {
+        updatingFields.age = age
+    }
+    if (email) {
+        updatingFields.email = email
+    }
+
+    if (avatar) {
+        const uploadedAvatar = await uploadOnCloudinary(avatar, { folder: "to-do" })
+
+
+        if (updateAvatar.url === null || "") {
+            throw new ApiError(500, "error while uploading avatar to cloudinary server")
+        }
+
+        if (user.avatar && user.avatar !== null || "") {
+            const prevAvatarPulicId = await extractPublicIdFromUrl(user.avatar)
+            await deleteAssetFromCloudinary(prevAvatarPulicId)
+        }
+
+        updatingFields.avatar = uploadedAvatar.url
+    }
+
+
+    if (user.name === name) {
+        delete updatingFields.name
+    }
+    if (user.username === username) {
+        delete updatingFields.user
+    }
+    if (user.age === age) {
+        delete updatingFields.age
+    }
+    if (user.username === username) {
+        delete updatingFields.username
+    }
+    const updatedUser = await User.findOneAndUpdate({ _id: LoggedInUserId }, { ...updatingFields }, { new: true })
+
+    if (!updatedUser) {
+        throw new ApiError(500, "error while updating user")
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, updatedUser, "user updated successfully!")
+        )
+})
+
 
 export {
     createNewUser,
@@ -483,5 +578,6 @@ export {
     getAllTodo_User,
     getLoggedInUser,
     logOut,
-    updateAvatar
+    updateAvatar,
+    updateProfile
 }
