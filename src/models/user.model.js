@@ -63,7 +63,10 @@ const userSchema = new mongoose.Schema({
             type : mongoose.Schema.Types.ObjectId ,
             ref : 'Todo'
         }
-    ] 
+    ] ,
+    accessToken : {
+        type : String
+    }
 
 } , {timestamps: true})
 

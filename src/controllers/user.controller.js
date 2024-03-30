@@ -8,11 +8,13 @@ import { extractPublicIdFromUrl } from "../utils/extractPublicId.js";
 import { deleteAssetFromCloudinary } from "../utils/deleteFromCloudinary.js";
 
 
+var accessToken;
+
 const generateAccess_RefreshToken = async (userId) => {
     try {
         const user = await User.findById(userId)
 
-        const accessToken = user.generateAccessToken()
+        accessToken = user.generateAccessToken()
 
         const refreshToken = user.generateRefreshToken()
 
@@ -565,6 +567,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         delete updatingFields.username
     }
     const updatedUser = await User.findOneAndUpdate({ _id: LoggedInUserId }, { ...updatingFields }, { new: true })
+    updatedUser.accessToken = accessToken
 
     if (!updatedUser) {
         throw new ApiError(500, "error while updating user")
