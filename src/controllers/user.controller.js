@@ -189,48 +189,57 @@ const updatePassword = asyncHandler(async (req, res) => {
 
 
 const updateAvatar = asyncHandler(async (req, res) => {
-    const loggedInUserId = req.user._id ? req.user._id : req.headers.id
-    const avatar = req.file.path
+    const loggedInUserId = req.user._id ? req.user._id : req.headers.id;
+    const avatar = req.file.path;
 
     if (!loggedInUserId) {
-        throw new ApiError(400, "logged in user id required for updating avatar")
+        throw new ApiError(400, "logged in user id required for updating avatar");
     }
 
     if (!avatar) {
-        throw new ApiError(400, "avatar required for updating")
+        throw new ApiError(400, "avatar required for updating");
     }
 
-    const user = await User.findById(loggedInUserId)
+    const user = await User.findById(loggedInUserId);
 
     if (!user) {
-        throw new ApiError(500, "error while finding logged in user into database")
+        throw new ApiError(500, "error while finding logged in user in database");
     }
 
-    const uploadedAvatar = await uploadOnCloudinary(avatar, { folder: "to-do" })
+    const uploadedAvatar = await uploadOnCloudinary(avatar);
 
-
-    if (updateAvatar.url === null || "") {
-        throw new ApiError(500, "error while uploading avatar to cloudinary server")
+    if (!uploadedAvatar.url) { // Fix: Check if upload was successful
+        throw new ApiError(500, "error while uploading avatar to cloudinary server");
     }
 
-    if (user.avatar && user.avatar !== null || "") {
-        const prevAvatarPulicId = await extractPublicIdFromUrl(user.avatar)
-        await deleteAssetFromCloudinary(prevAvatarPulicId)
+    if (user.avatar) {
+        const prevAvatarPublicId = await extractPublicIdFromUrl(user.avatar);
+        await deleteAssetFromCloudinary(prevAvatarPublicId);
     }
 
-    const updatedUser = await User.findByIdAndUpdate(loggedInUserId, { avatar: uploadedAvatar.url })
+    
+
+    const updatedAvatar = await User.findByIdAndUpdate(loggedInUserId, {avatar : uploadedAvatar.url})
+
+    if(!updateAvatar){
+        throw new ApiError("error while updating avatar in database")
+    }
+
+
+
+    // No need to find and update the user again, as we have already updated the avatar above
+    //const updatedUser = await User.findByIdAndUpdate(loggedInUserId, { avatar: uploadedAvatar.url });
 
     return res
         .status(200)
         .json(
             new ApiResponse(
                 200,
-                updatedUser,
+                {avatar : uploadedAvatar?.url},
                 "avatar updated successfully"
             )
-        )
-
-})
+        );
+});
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
     const IncomingRefreshToken = req.cookies?.refreshToken
